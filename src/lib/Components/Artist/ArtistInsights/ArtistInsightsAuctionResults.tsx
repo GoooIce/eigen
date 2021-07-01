@@ -17,11 +17,69 @@ import { useTracking } from "react-tracking"
 import styled from "styled-components/native"
 import { useScreenDimensions } from "../../../utils/useScreenDimensions"
 import { AuctionResultFragmentContainer } from "../../Lists/AuctionResultListItem"
+import { MarketStatsQueryRenderer } from "./MarketStats"
 
 interface Props {
   artist: ArtistInsightsAuctionResults_artist
   relay: RelayPaginationProp
   scrollToTop: () => void
+}
+
+const HeaderComponent = (props) => {
+  const tracking = useTracking()
+  const { artist, filterParams, emptyResults } = props
+
+  const resultsString = Number(artist.auctionResultsConnection?.totalCount) > 1 ? "results" : "result"
+
+  const getSortDescription = () => {
+    const sortMode = ORDERED_AUCTION_RESULTS_SORTS.find((sort) => sort.paramValue === filterParams?.sort)
+    if (sortMode) {
+      return sortMode.displayText
+    }
+  }
+
+  const renderAuctionResultsModal = () => (
+    <>
+      <Spacer my={1} />
+      <Text>
+        These auction results bring together sale data from top auction houses around the world, including
+        Christie&rsquo;s, Sotheby&rsquo;s, Phillips and Bonhams. Results are updated daily.
+      </Text>
+      <Spacer mb={2} />
+      <Text>
+        Please note that the sale price includes the hammer price and buyer’s premium, as well as any other additional
+        fees (e.g., Artist’s Resale Rights).
+      </Text>
+      <Spacer mb={2} />
+    </>
+  )
+
+  return (
+    <Flex px={2}>
+      <MarketStatsQueryRenderer artistInternalID={artist.internalID} />
+      <Flex flexDirection="row" alignItems="center">
+        <InfoButton
+          titleElement={
+            <Text variant="title" mr={0.5}>
+              Auction Results
+            </Text>
+          }
+          trackEvent={() => {
+            tracking.trackEvent(tappedInfoBubble(tracks.tapAuctionResultsInfo()))
+          }}
+          modalTitle={"Auction Results"}
+          maxModalHeight={310}
+          modalContent={renderAuctionResultsModal()}
+        />
+      </Flex>
+      <SortMode variant="small" color="black60">
+        {!!artist.auctionResultsConnection?.totalCount &&
+          new Intl.NumberFormat().format(artist.auctionResultsConnection.totalCount)}{" "}
+        {resultsString} {bullet} Sorted by {getSortDescription()?.toLowerCase()}
+      </SortMode>
+      <Separator borderColor={color("black5")} mt="2" />
+    </Flex>
+  )
 }
 
 const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, scrollToTop }) => {
@@ -55,13 +113,6 @@ const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, scrollTo
 
   const auctionResults = extractNodes(artist.auctionResultsConnection)
   const [loadingMoreData, setLoadingMoreData] = useState(false)
-
-  const getSortDescription = useCallback(() => {
-    const sortMode = ORDERED_AUCTION_RESULTS_SORTS.find((sort) => sort.paramValue === filterParams?.sort)
-    if (sortMode) {
-      return sortMode.displayText
-    }
-  }, [filterParams])
 
   const loadMoreAuctionResults = () => {
     if (!relay.hasMore() || relay.isLoading()) {
@@ -101,32 +152,6 @@ const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, scrollTo
     ])
   }, [])
 
-  const renderAuctionResultsModal = () => (
-    <>
-      <Spacer my={1} />
-      <Text>
-        These auction results bring together sale data from top auction houses around the world, including
-        Christie&rsquo;s, Sotheby&rsquo;s, Phillips and Bonhams. Results are updated daily.
-      </Text>
-      <Spacer mb={2} />
-      <Text>
-        Please note that the sale price includes the hammer price and buyer’s premium, as well as any other additional
-        fees (e.g., Artist’s Resale Rights).
-      </Text>
-      <Spacer mb={2} />
-    </>
-  )
-
-  if (!auctionResults.length) {
-    return (
-      <Box my="80px">
-        <FilteredArtworkGridZeroState id={artist.id} slug={artist.slug} />
-      </Box>
-    )
-  }
-
-  const resultsString = Number(artist.auctionResultsConnection?.totalCount) > 1 ? "results" : "result"
-
   return (
     <FlatList
       data={auctionResults}
@@ -140,36 +165,17 @@ const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, scrollTo
           }}
         />
       )}
-      ListHeaderComponent={() => (
-        <Flex px={2}>
-          <Flex flexDirection="row" alignItems="center">
-            <InfoButton
-              titleElement={
-                <Text variant="title" mr={0.5}>
-                  Auction Results
-                </Text>
-              }
-              trackEvent={() => {
-                tracking.trackEvent(tappedInfoBubble(tracks.tapAuctionResultsInfo()))
-              }}
-              modalTitle={"Auction Results"}
-              maxModalHeight={310}
-              modalContent={renderAuctionResultsModal()}
-            />
-          </Flex>
-          <SortMode variant="small" color="black60">
-            {!!artist.auctionResultsConnection?.totalCount &&
-              new Intl.NumberFormat().format(artist.auctionResultsConnection.totalCount)}{" "}
-            {resultsString} {bullet} Sorted by {getSortDescription()?.toLowerCase()}
-          </SortMode>
-          <Separator borderColor={color("black5")} mt="2" />
-        </Flex>
-      )}
+      ListHeaderComponent={<HeaderComponent artist={artist} filterParams={filterParams} emptyResults={auctionResults.length === 0} />}
       ItemSeparatorComponent={() => (
         <Flex px={2}>
           <Separator borderColor={color("black5")} />
         </Flex>
       )}
+      ListEmptyComponent={
+        <Box my="80px">
+          <FilteredArtworkGridZeroState id={artist.id} slug={artist.slug} />
+        </Box>
+      }
       style={{ width: useScreenDimensions().width, left: -20 }}
       onEndReached={loadMoreAuctionResults}
       ListFooterComponent={loadingMoreData ? <Spinner style={{ marginTop: 20, marginBottom: 20 }} /> : null}

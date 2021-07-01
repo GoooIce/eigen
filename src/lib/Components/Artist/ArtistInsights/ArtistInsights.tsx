@@ -78,7 +78,6 @@ export const ArtistInsights: React.FC<ArtistInsightsProps> = (props) => {
         onScrollEndDrag={onScrollEndDrag}
         innerRef={flatListRef}
       >
-        <MarketStatsQueryRenderer artistInternalID={artist.internalID} environment={relay.environment} />
         <View
           onLayout={({
             nativeEvent: {
