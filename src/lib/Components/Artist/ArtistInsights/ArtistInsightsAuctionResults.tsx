@@ -6,12 +6,18 @@ import { ORDERED_AUCTION_RESULTS_SORTS } from "lib/Components/ArtworkFilter/Filt
 import { FilteredArtworkGridZeroState } from "lib/Components/ArtworkGrids/FilteredArtworkGridZeroState"
 import { InfoButton } from "lib/Components/Buttons/InfoButton"
 import Spinner from "lib/Components/Spinner"
+import { useAnimatedValue } from "lib/Components/StickyTabPage/reanimatedHelpers"
+import { StickyTabPageContext } from "lib/Components/StickyTabPage/SitckyTabPageContext"
+import { StickyTabPageFlatListContext } from "lib/Components/StickyTabPage/StickyTabPageFlatList"
+import { StickyTabPageScrollView } from "lib/Components/StickyTabPage/StickyTabPageScrollView"
 import { PAGE_SIZE } from "lib/data/constants"
 import { navigate } from "lib/navigation/navigate"
 import { extractNodes } from "lib/utils/extractNodes"
+import { useAutoCollapsingMeasuredView } from "lib/utils/useAutoCollapsingMeasuredView"
 import { Box, bullet, color, Flex, Separator, Spacer, Text } from "palette"
-import React, { useCallback, useEffect, useState } from "react"
-import { FlatList } from "react-native"
+import React, { useCallback, useContext, useEffect, useState } from "react"
+import { FlatList, View } from "react-native"
+import Animated from "react-native-reanimated"
 import { createPaginationContainer, graphql, RelayPaginationProp } from "react-relay"
 import { useTracking } from "react-tracking"
 import styled from "styled-components/native"
@@ -25,72 +31,30 @@ interface Props {
   scrollToTop: () => void
 }
 
-const HeaderComponent = (props) => {
-  const tracking = useTracking()
-  const { artist, filterParams, emptyResults } = props
+const AnimatedFlatList: typeof FlatList = Animated.createAnimatedComponent(FlatList)
 
-  const resultsString = Number(artist.auctionResultsConnection?.totalCount) > 1 ? "results" : "result"
-
-  const getSortDescription = () => {
-    const sortMode = ORDERED_AUCTION_RESULTS_SORTS.find((sort) => sort.paramValue === filterParams?.sort)
-    if (sortMode) {
-      return sortMode.displayText
-    }
-  }
-
-  const renderAuctionResultsModal = () => (
-    <>
-      <Spacer my={1} />
-      <Text>
-        These auction results bring together sale data from top auction houses around the world, including
-        Christie&rsquo;s, Sotheby&rsquo;s, Phillips and Bonhams. Results are updated daily.
-      </Text>
-      <Spacer mb={2} />
-      <Text>
-        Please note that the sale price includes the hammer price and buyer’s premium, as well as any other additional
-        fees (e.g., Artist’s Resale Rights).
-      </Text>
-      <Spacer mb={2} />
-    </>
-  )
-
-  return (
-    <Flex px={2}>
-      <MarketStatsQueryRenderer artistInternalID={artist.internalID} />
-      <Flex flexDirection="row" alignItems="center">
-        <InfoButton
-          titleElement={
-            <Text variant="title" mr={0.5}>
-              Auction Results
-            </Text>
-          }
-          trackEvent={() => {
-            tracking.trackEvent(tappedInfoBubble(tracks.tapAuctionResultsInfo()))
-          }}
-          modalTitle={"Auction Results"}
-          maxModalHeight={310}
-          modalContent={renderAuctionResultsModal()}
-        />
-      </Flex>
-      <SortMode variant="small" color="black60">
-        {!!artist.auctionResultsConnection?.totalCount &&
-          new Intl.NumberFormat().format(artist.auctionResultsConnection.totalCount)}{" "}
-        {resultsString} {bullet} Sorted by {getSortDescription()?.toLowerCase()}
-      </SortMode>
-      <Separator borderColor={color("black5")} mt="2" />
-    </Flex>
-  )
-}
-
-const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, scrollToTop }) => {
+const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, onScroll, scrollToTop }) => {
   const tracking = useTracking()
 
   const setAggregationsAction = ArtworksFiltersStore.useStoreActions((state) => state.setAggregationsAction)
   const setFilterTypeAction = ArtworksFiltersStore.useStoreActions((state) => state.setFilterTypeAction)
   const appliedFilters = ArtworksFiltersStore.useStoreState((state) => state.appliedFilters)
   const applyFilters = ArtworksFiltersStore.useStoreState((state) => state.applyFilters)
+  const { width } = useScreenDimensions()
 
   const filterParams = filterArtworksParams(appliedFilters, "auctionResult")
+
+  const { staticHeaderHeight, stickyHeaderHeight } = useContext(StickyTabPageContext)
+  const scrollOffsetY = useAnimatedValue(0)
+  const stickyHeaderOffsetY = useAnimatedValue(0)
+  const filterHeaderComponent = <View style={{ width, height: 50, backgroundColor: "green" }} />
+  const { jsx: staticFilterHeaderComponent, nativeHeight: staticFilterHeaderHeight } = useAutoCollapsingMeasuredView(
+    filterHeaderComponent
+  )
+
+  const fullHeaderHeight = Animated.add(Animated.max(staticHeaderHeight, 0), Animated.max(stickyHeaderHeight, 0))
+  const offsetY = Animated.sub(stickyHeaderOffsetY, scrollOffsetY)
+  const translateY = Animated.max(Animated.add(offsetY, fullHeaderHeight), Animated.max(stickyHeaderHeight, 0))
 
   useEffect(() => {
     setFilterTypeAction("auctionResult")
@@ -153,34 +117,68 @@ const ArtistInsightsAuctionResults: React.FC<Props> = ({ artist, relay, scrollTo
   }, [])
 
   return (
-    <FlatList
-      data={auctionResults}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <AuctionResultFragmentContainer
-          auctionResult={item}
-          onPress={() => {
-            tracking.trackEvent(tracks.tapAuctionGroup(item.internalID, artist.internalID))
-            navigate(`/artist/${artist?.slug!}/auction-result/${item.internalID}`)
-          }}
+    <>
+      <StickyTabPageScrollView>
+        <MarketStatsQueryRenderer artistInternalID={artist.internalID} />
+        <Animated.View
+          onLayout={Animated.event(
+            [
+              {
+                nativeEvent: {
+                  layout: { y: stickyHeaderOffsetY },
+                },
+              },
+            ],
+            { useNativeDriver: true }
+          )}
+          style={{ width: "100%", height: staticFilterHeaderHeight, backgroundColor: "blue" }}
         />
-      )}
-      ListHeaderComponent={<HeaderComponent artist={artist} filterParams={filterParams} emptyResults={auctionResults.length === 0} />}
-      ItemSeparatorComponent={() => (
-        <Flex px={2}>
-          <Separator borderColor={color("black5")} />
-        </Flex>
-      )}
-      ListEmptyComponent={
-        <Box my="80px">
-          <FilteredArtworkGridZeroState id={artist.id} slug={artist.slug} />
-        </Box>
-      }
-      style={{ width: useScreenDimensions().width, left: -20 }}
-      onEndReached={loadMoreAuctionResults}
-      ListFooterComponent={loadingMoreData ? <Spinner style={{ marginTop: 20, marginBottom: 20 }} /> : null}
-      contentContainerStyle={{ paddingBottom: 20 }}
-    />
+        <AnimatedFlatList
+          data={auctionResults}
+          keyExtractor={(item) => item.id}
+          scrollEventThrottle={0.0000000001}
+          onScroll={(event) => scrollOffsetY.setValue(event.nativeEvent.contentOffset.y)}
+          // onScroll={Animated.event(
+          //   [
+          //     {
+          //       nativeEvent: {
+          //         contentOffset: { y: scrollOffsetY },
+          //       },
+          //     },
+          //   ],
+          //   {
+          //     useNativeDriver: true,
+          //   }
+          // )}
+          renderItem={({ item }) => (
+            <AuctionResultFragmentContainer
+              auctionResult={item}
+              onPress={() => {
+                tracking.trackEvent(tracks.tapAuctionGroup(item.internalID, artist.internalID))
+                navigate(`/artist/${artist?.slug!}/auction-result/${item.internalID}`)
+              }}
+            />
+          )}
+          ItemSeparatorComponent={() => (
+            <Flex px={2}>
+              <Separator borderColor={color("black5")} />
+            </Flex>
+          )}
+          ListEmptyComponent={
+            <Box my="80px">
+              <FilteredArtworkGridZeroState id={artist.id} slug={artist.slug} />
+            </Box>
+          }
+          style={{ width, left: -20 }}
+          onEndReached={loadMoreAuctionResults}
+          ListFooterComponent={loadingMoreData ? <Spinner style={{ marginTop: 20, marginBottom: 20 }} /> : null}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      </StickyTabPageScrollView>
+      <Animated.View style={{ position: "absolute", width, transform: [{ translateY }] }}>
+        {staticFilterHeaderComponent}
+      </Animated.View>
+    </>
   )
 }
 

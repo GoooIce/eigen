@@ -3,8 +3,8 @@ import React from "react"
 import Animated from "react-native-reanimated"
 
 export const StickyTabPageContext = React.createContext<{
-  staticHeaderHeight: Animated.Node<number> | null
-  stickyHeaderHeight: Animated.Node<number> | null
+  staticHeaderHeight: Animated.Node<number>
+  stickyHeaderHeight: Animated.Node<number>
   headerOffsetY: Animated.Value<number>
   tabLabels: string[]
   activeTabIndex: GlobalState<number>

@@ -6,13 +6,14 @@ import { useOnTabFocusedEffect } from "lib/Components/StickyTabPage/StickyTabPag
 import { StickyTabPageScrollView } from "lib/Components/StickyTabPage/StickyTabPageScrollView"
 import { Schema } from "lib/utils/track"
 import { screen } from "lib/utils/track/helpers"
-import React, { useCallback, useRef, useState } from "react"
+import React, { useCallback, useContext, useRef, useState } from "react"
 import { FlatList, NativeScrollEvent, NativeSyntheticEvent, View } from "react-native"
 import { createFragmentContainer, graphql, RelayProp } from "react-relay"
 import { useTracking } from "react-tracking"
 import { ReactElement } from "simple-markdown"
 import { ArtistInsightsAuctionResultsPaginationContainer } from "./ArtistInsightsAuctionResults"
 import { MarketStatsQueryRenderer } from "./MarketStats"
+import { StickyTabPageFlatListContext } from 'lib/Components/StickyTabPage/StickyTabPageFlatList'
 
 interface ArtistInsightsProps {
   artist: ArtistInsights_artist
@@ -41,6 +42,7 @@ export const ArtistInsights: React.FC<ArtistInsightsProps> = (props) => {
 
   const [isFilterButtonVisible, setIsFilterButtonVisible] = useState(false)
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false)
+  const [visible, setVisible] = useState(false)
   const auctionResultsYCoordinate = useRef<number>(0)
 
   const openFilterModal = () => {
@@ -73,23 +75,7 @@ export const ArtistInsights: React.FC<ArtistInsightsProps> = (props) => {
 
   return (
     <ArtworkFiltersStoreProvider>
-      <StickyTabPageScrollView
-        contentContainerStyle={{ paddingTop: 20, paddingBottom: 60 }}
-        onScrollEndDrag={onScrollEndDrag}
-        innerRef={flatListRef}
-      >
-        <View
-          onLayout={({
-            nativeEvent: {
-              layout: { y },
-            },
-          }) => {
-            auctionResultsYCoordinate.current = y
-          }}
-        >
-          <ArtistInsightsAuctionResultsPaginationContainer artist={artist} scrollToTop={scrollToTop} />
-        </View>
-      </StickyTabPageScrollView>
+      <ArtistInsightsAuctionResultsPaginationContainer artist={artist} scrollToTop={scrollToTop} />
       <ArtworkFilterNavigator
         isFilterArtworksModalVisible={isFilterModalVisible}
         id={artist.internalID}
