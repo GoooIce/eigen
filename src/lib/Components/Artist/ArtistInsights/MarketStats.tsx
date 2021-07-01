@@ -14,6 +14,7 @@ import { useTracking } from "react-tracking"
 import { RelayModernEnvironment } from "relay-runtime/lib/store/RelayModernEnvironment"
 import { MarketStats_priceInsightsConnection } from "../../../../__generated__/MarketStats_priceInsightsConnection.graphql"
 import { extractNodes } from "../../../utils/extractNodes"
+import { defaultEnvironment } from 'lib/relay/createEnvironment'
 
 interface MarketStatsProps {
   priceInsightsConnection: MarketStats_priceInsightsConnection
@@ -177,11 +178,11 @@ export const MarketStatsFragmentContainer = createFragmentContainer(MarketStats,
 
 export const MarketStatsQueryRenderer: React.FC<{
   artistInternalID: string
-  environment: RelayModernEnvironment
+  environment?: RelayModernEnvironment
 }> = ({ artistInternalID, environment }) => {
   return (
     <QueryRenderer<MarketStatsQuery>
-      environment={environment}
+      environment={environment ?? defaultEnvironment}
       variables={{ artistInternalID }}
       query={graphql`
         query MarketStatsQuery($artistInternalID: ID!) {
